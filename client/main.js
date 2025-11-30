@@ -1,9 +1,6 @@
 import './style.css';
 import { DiscordSDK } from "@discord/embedded-app-sdk";
 
-// Will eventually need to set up the Discord SDK
-// const discordSdk = new DiscordSDK(import.meta.env.VITE_DISCORD_CLIENT_ID);
-
 const startScreen = document.getElementById('start-screen');
 const gameScreen = document.getElementById('game-screen');
 const startBtn = document.getElementById('start-btn');
@@ -12,6 +9,44 @@ const chatHistory = document.getElementById('chat-history');
 const questionInput = document.getElementById('question-input');
 const askBtn = document.getElementById('ask-btn');
 
+// 部屋のIDを起動時に取得しておく
+let instanceId = "";
+let discordSdk;
+
+async function setupDiscord() {
+  try {
+    // Discord SDKの初期化をここで行う (ブラウザでエラーになるのを防ぐため)
+    discordSdk = new DiscordSDK(import.meta.env.VITE_DISCORD_CLIENT_ID);
+    await discordSdk.ready();
+    // DiscordのアクティビティのインスタンスIDを取得
+    instanceId = discordSdk.instanceId;
+    console.log(instanceId);
+
+    // Discordの個人認証コードを取得
+    const { code } = await discordSdk.commands.authorize({
+      client_id: import.meta.env.VITE_DISCORD_CLIENT_ID,
+      response_type: "code",
+      state: "",
+      prompt: "none",
+      scope: ["identify", "guilds"], // 名前とサーバー情報を知りたい
+    });
+    console.log(code);
+
+  } catch (e) {
+    console.log("Discord SDK not ready (running locally?)");
+    console.log(e);
+  }
+
+  // ローカル開発用: instanceIdが取れなかったらランダム生成
+  if (!instanceId) {
+    instanceId = "local-test-" + Math.random().toString(36).substring(7);
+    console.log("Generated local instanceId:", instanceId);
+  }
+}
+
+setupDiscord();
+
+// スタートボタンの処理
 startBtn.addEventListener('click', async () => {
   try {
     // 1. 連打防止　ローディング表示
@@ -21,6 +56,8 @@ startBtn.addEventListener('click', async () => {
     // 2. ゲーム開始 APIリクエスト
     const response = await fetch('/api/game/start', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instanceId: instanceId })
     });
 
     if (!response.ok) throw new Error('Failed to start game');
@@ -63,7 +100,7 @@ async function askQuestion() {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, instanceId: instanceId })
     });
 
     if (!response.ok) throw new Error('Failed to get answer');
