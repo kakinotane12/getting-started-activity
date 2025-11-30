@@ -9,7 +9,7 @@ const chatHistory = document.getElementById('chat-history');
 const questionInput = document.getElementById('question-input');
 const askBtn = document.getElementById('ask-btn');
 
-// 部屋のIDを起動時に取得しておく
+// DiscordのアクティビティのインスタンスのIDを起動時に取得しておく
 let instanceId = "";
 let discordSdk;
 
@@ -18,9 +18,8 @@ async function setupDiscord() {
     console.log("Setting up Discord SDK...");
     console.log("Client ID:", import.meta.env.VITE_DISCORD_CLIENT_ID);
 
-    // Discord SDKの初期化をここで行う (ブラウザでエラーになるのを防ぐため)
+    // Discord SDKの初期化
     discordSdk = new DiscordSDK(import.meta.env.VITE_DISCORD_CLIENT_ID);
-
     console.log("Waiting for discordSdk.ready()...");
     await discordSdk.ready();
     console.log("discordSdk.ready() completed");
