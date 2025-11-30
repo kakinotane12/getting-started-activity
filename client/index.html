@@ -7,7 +7,26 @@
     <title>Hello, World</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div id="start-screen">
+        <h1>Sea Turtle Soup</h1>
+        <p>Ask questions to solve the mystery.</p>
+        <button id="start-btn">Start Game</button>
+      </div>
+      <div id="game-screen" style="display: none;">
+        <div id="puzzle-container">
+          <h2>Puzzle</h2>
+          <p id="puzzle-text">Loading...</p>
+        </div>
+        <div id="chat-container">
+          <div id="chat-history"></div>
+          <div id="input-area">
+            <input type="text" id="question-input" placeholder="Ask a Yes/No question..." />
+            <button id="ask-btn">Ask</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/main.js"></script>
   </body>
 </html>
