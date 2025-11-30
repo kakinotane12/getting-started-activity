@@ -15,12 +15,19 @@ let discordSdk;
 
 async function setupDiscord() {
   try {
+    console.log("Setting up Discord SDK...");
+    console.log("Client ID:", import.meta.env.VITE_DISCORD_CLIENT_ID);
+
     // Discord SDKの初期化をここで行う (ブラウザでエラーになるのを防ぐため)
     discordSdk = new DiscordSDK(import.meta.env.VITE_DISCORD_CLIENT_ID);
+
+    console.log("Waiting for discordSdk.ready()...");
     await discordSdk.ready();
+    console.log("discordSdk.ready() completed");
+
     // DiscordのアクティビティのインスタンスIDを取得
     instanceId = discordSdk.instanceId;
-    console.log(instanceId);
+    console.log("Discord Instance ID from SDK:", instanceId);
 
     // Discordの個人認証コードを取得
     const { code } = await discordSdk.commands.authorize({
@@ -30,11 +37,11 @@ async function setupDiscord() {
       prompt: "none",
       scope: ["identify", "guilds"], // 名前とサーバー情報を知りたい
     });
-    console.log(code);
+    console.log("Auth Code:", code);
 
   } catch (e) {
-    console.log("Discord SDK not ready (running locally?)");
-    console.log(e);
+    console.log("Discord SDK setup failed (running locally?)");
+    console.error(e);
   }
 
   // ローカル開発用: instanceIdが取れなかったらランダム生成
@@ -44,7 +51,19 @@ async function setupDiscord() {
   }
 }
 
-setupDiscord();
+// 初期化中はボタンを無効化
+startBtn.disabled = true;
+startBtn.textContent = "Initializing...";
+
+setupDiscord().then(() => {
+  console.log("Setup complete, enabling start button");
+  startBtn.disabled = false;
+  startBtn.textContent = "Start Game";
+}).catch((err) => {
+  console.error("Setup failed:", err);
+  startBtn.disabled = false;
+  startBtn.textContent = "Start Game (Setup Failed)";
+});
 
 // スタートボタンの処理
 startBtn.addEventListener('click', async () => {
@@ -52,6 +71,8 @@ startBtn.addEventListener('click', async () => {
     // 1. 連打防止　ローディング表示
     startBtn.disabled = true;
     startBtn.textContent = "Loading...";
+
+    console.log("Sending start request with instanceId:", instanceId);
 
     // 2. ゲーム開始 APIリクエスト
     const response = await fetch('/api/game/start', {
@@ -73,9 +94,10 @@ startBtn.addEventListener('click', async () => {
   } catch (error) {
     // 5. エラー処理
     console.error(error);
-    alert('Error starting game. Please try again.');
+    // alert('Error starting game. Please try again.'); // Discord内ではalertがブロックされるためコメントアウト
+    console.error('Error starting game. Please try again.');
     startBtn.disabled = false;
-    startBtn.textContent = "Start Game";
+    startBtn.textContent = "Start Game (Retry)";
   }
 });
 

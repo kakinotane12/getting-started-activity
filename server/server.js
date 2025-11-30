@@ -30,30 +30,6 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // Key: instanceId (部屋のID), Value: その部屋のゲーム状態
 const gameStates = new Map();
 
-// --- ゲーム開始 API ---
-app.post("/api/game/start", async (req, res) => {
-  // クライアントから「部屋ID」を受け取る
-  const { instanceId } = req.body;
-
-  if (!instanceId) return res.status(400).json({ error: "Instance ID required" });
-
-  const randomIndex = Math.floor(Math.random() * PUZZLES.length);
-  const selectedPuzzle = PUZZLES[randomIndex];
-
-  // その部屋専用の状態を作成して保存
-  const newState = {
-    puzzle: selectedPuzzle.question,
-    solution: selectedPuzzle.solution,
-    history: []
-  };
-
-  // Mapに保存
-  gameStates.set(instanceId, newState);
-
-  res.json({ puzzle: newState.puzzle });
-});
-
-
 app.post("/api/token", async (req, res) => {
   // フロントエンドから送られてきた「code」を使って、Discord公式に「アクセストークン」を要求する
   const response = await fetch(`https://discord.com/api/oauth2/token`, {
@@ -78,17 +54,32 @@ app.post("/api/token", async (req, res) => {
 
 // --- ゲーム開始 API ---
 app.post("/api/game/start", async (req, res) => {
-  // ランダムな問題を選び、ゲームの状態を初期化
+  // デバッグ用ログ
+  console.log("POST /api/game/start received");
+  console.log("Request body:", req.body);
+
+  // クライアントから「部屋ID」を受け取る
+  const { instanceId } = req.body;
+
+  if (!instanceId) {
+    console.error("Error: Instance ID is missing");
+    return res.status(400).json({ error: "Instance ID required" });
+  }
+
   const randomIndex = Math.floor(Math.random() * PUZZLES.length);
   const selectedPuzzle = PUZZLES[randomIndex];
 
-  gameState = {
+  // その部屋専用の状態を作成して保存
+  const newState = {
     puzzle: selectedPuzzle.question,
     solution: selectedPuzzle.solution,
     history: []
   };
 
-  res.json({ puzzle: gameState.puzzle });
+  // Mapに保存
+  gameStates.set(instanceId, newState);
+
+  res.json({ puzzle: newState.puzzle });
 });
 
 // --- 質問 API ---
