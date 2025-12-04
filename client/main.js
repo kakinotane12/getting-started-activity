@@ -13,6 +13,25 @@ const askBtn = document.getElementById('ask-btn');
 let instanceId = "";
 let discordSdk;
 
+// --- 共通関数: 画面切り替え ---
+function switchToGameScreen(puzzleTextContent) {
+  puzzleText.textContent = puzzleTextContent;
+  startScreen.style.display = 'none';
+  gameScreen.style.display = 'block';
+}
+
+// --- 共通関数: 履歴の描画 ---
+// サーバーから受け取った履歴データでチャット欄を書き直す
+function renderHistory(history) {
+  // 一旦クリア（簡易実装のため毎回書き直します）
+  chatHistory.innerHTML = '';
+
+  history.forEach(log => {
+    appendMessage(log.question, 'user');
+    appendMessage(log.answer, 'ai');
+  });
+}
+
 async function setupDiscord() {
   try {
     console.log("Setting up Discord SDK...");
@@ -50,14 +69,68 @@ async function setupDiscord() {
   }
 }
 
+// ポーリング処理
+function startPolling() {
+  // 2秒ごとにサーバーの状態を確認
+  setInterval(async () => {
+    if (!instanceId) return;
+
+    try {
+      const res = await fetch('/api/game/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instanceId })
+      });
+      const data = await res.json();
+
+      // 1. もし「プレイ中」なのに、自分が「スタート画面」にいたら強制参加
+      if (data.status === 'playing' && startScreen.style.display !== 'none') {
+        console.log("他のプレイヤーが開始したゲームに参加します");
+        switchToGameScreen(data.puzzle);
+      }
+
+      // 2. プレイ中なら履歴を同期
+      if (data.status === 'playing') {
+        renderHistory(data.history);
+      }
+
+    } catch (e) {
+      console.error("Polling error:", e);
+    }
+  }, 2000); // 2秒間隔
+}
+
 // 初期化中はボタンを無効化
 startBtn.disabled = true;
 startBtn.textContent = "Initializing...";
 
-setupDiscord().then(() => {
+setupDiscord().then(async () => {
   console.log("Setup complete, enabling start button");
-  startBtn.disabled = false;
-  startBtn.textContent = "Start Game";
+  startPolling();
+  // 初期化時にサーバーの状態を確認
+  try {
+    const res = await fetch('/api/game/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instanceId })
+    });
+    const data = await res.json();
+
+    if (data.stataus == 'playing') {
+      // ゲームが始まっている場合
+      startBtn.textContent = "Join Game";
+      switchToGameScreen(data.puzzle);
+      renderHistory(data.history);
+    } else {
+      // ゲームが始まっていない場合
+      startBtn.disabled = false;
+      startBtn.textContent = "Start Game";
+    }
+  } catch (e) {
+    console.error("Setup failed:", e);
+    startBtn.disabled = false;
+    startBtn.textContent = "Start Game (Setup Failed)";
+  }
 }).catch((err) => {
   console.error("Setup failed:", err);
   startBtn.disabled = false;
@@ -86,9 +159,10 @@ startBtn.addEventListener('click', async () => {
     const data = await response.json();
 
     // 4. 画面を更新
-    puzzleText.textContent = data.puzzle;
-    startScreen.style.display = 'none'; //スタート画面を隠す
-    gameScreen.style.display = 'block'; //ゲーム画面を表示
+    switchToGameScreen(data.puzzle);
+    if (!data.isNewGame && data.history) {
+      renderHistory(data.history);
+    }
 
   } catch (error) {
     // 5. エラー処理
@@ -128,7 +202,7 @@ async function askQuestion() {
 
     // 4. サーバーからAIの回答を受け取る
     const data = await response.json();
-    appendMessage(data.answer, 'ai');
+    // appendMessage(data.answer, 'ai');
 
   } catch (error) {
     console.error(error);

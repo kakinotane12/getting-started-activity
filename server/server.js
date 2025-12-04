@@ -4,6 +4,7 @@ import fetch from "node-fetch";
 import fs from 'fs';
 import path from 'path';
 import { GoogleGenerativeAI } from "@google/generative-ai";
+// import cors from 'cors';
 
 dotenv.config({ path: "../.env" });
 
@@ -22,6 +23,10 @@ const port = 3001;
 
 // クライアントからのJSONデータを読み取れるようにする
 app.use(express.json());
+
+// ② 道具を使って「通行許可証」を発行する
+// 「origin: "*"」は「どこから来たリクエストでも通してよし！」という意味
+// app.use(cors({ origin: "*" }));
 
 // Gemini APIの初期化　(.envから取得)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -52,34 +57,45 @@ app.post("/api/token", async (req, res) => {
   res.send({ access_token });
 });
 
+
 // --- ゲーム開始 API ---
 app.post("/api/game/start", async (req, res) => {
-  // デバッグ用ログ
   console.log("POST /api/game/start received");
-  console.log("Request body:", req.body);
-
   // クライアントから「部屋ID」を受け取る
   const { instanceId } = req.body;
+  if (!instanceId) return res.status(400).json({ error: "Instance ID required" });
 
-  if (!instanceId) {
-    console.error("Error: Instance ID is missing");
-    return res.status(400).json({ error: "Instance ID required" });
+  //  すでにプレイ中なら、新しいゲームを開始せずに「既存の状態」を返す
+  let currentState = gameStates.get(instanceId);
+  if (currentState && currentState.status === "playing") {
+    console.log(`Room ${instanceId} is already playing. Joining existing game.`);
+    return res.json({
+      puzzle: currentState.puzzle,
+      history: currentState.history,
+      isNewGame: false
+    });
   }
 
+  // 新しいゲームを作成
   const randomIndex = Math.floor(Math.random() * PUZZLES.length);
   const selectedPuzzle = PUZZLES[randomIndex];
 
-  // その部屋専用の状態を作成して保存
+  // 新しい部屋の状態を保存
   const newState = {
+    status: "playing", // 状態を記録
     puzzle: selectedPuzzle.question,
     solution: selectedPuzzle.solution,
     history: []
   };
 
-  // Mapに保存
   gameStates.set(instanceId, newState);
+  console.log(`Room ${instanceId} started new game.`);
 
-  res.json({ puzzle: newState.puzzle });
+  // レスポンス：フロントエンドに新しい部屋の状態を返す
+  res.json({
+    puzzle: newState.puzzle,
+    isNewGame: true
+  });
 });
 
 // --- 質問 API ---
@@ -131,6 +147,23 @@ app.post("/api/game/ask", async (req, res) => {
     console.error("Gemini API Error:", error);
     res.status(500).json({ error: "Failed to get response from AI" });
   }
+});
+
+// ポーリング用（状態確認）API
+// クライアントが定期的にアクセス
+app.post("/api/game/status", (req, res) => {
+  const { instanceId } = req.body;
+  const state = gameStates.get(instanceId);
+
+  if (!state) {
+    return res.json({ status: "waiting", history: [] });
+  }
+
+  res.json({
+    status: state.status,
+    puzzle: state.puzzle,
+    history: state.history
+  });
 });
 
 // サーバーを起動
